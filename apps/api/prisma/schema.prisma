@@ -1,0 +1,904 @@
+// Modelo de dados — tradução direta de docs/02-modelo-de-dados.md
+//
+// Notas de esboço (a revisar antes do Sprint 1):
+// - PK usa gen_random_uuid() (nativo do Postgres 13+). O doc pede uuid v7;
+//   trocar o default por uma função uuidv7() quando a extensão/estratégia for escolhida.
+// - Índices únicos parciais (documento por cliente ativo, um endereço principal por
+//   cliente, etc. — invariantes I6/I7 do doc 02) não são expressáveis no schema do
+//   Prisma; entram como SQL customizado numa migration (`prisma migrate dev --create-only`).
+// - Coluna gerada `unaccent(lower(nome))` + índice GIN pg_trgm (RN-CLI-09) idem: SQL customizado.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [citext, pg_trgm, unaccent]
+}
+
+// ---------- Enums ----------
+
+enum PapelUsuario {
+  ADMIN
+  ATENDENTE
+  TECNICO
+  FINANCEIRO
+  ESTOQUE
+}
+
+enum TipoPessoa {
+  FISICA
+  JURIDICA
+}
+
+enum TipoEnderecoCliente {
+  PRINCIPAL
+  COBRANCA
+  ENTREGA
+}
+
+enum TipoProduto {
+  PECA
+  INSUMO
+  REVENDA
+}
+
+enum TipoMovimentoEstoque {
+  ENTRADA
+  SAIDA
+  AJUSTE_POSITIVO
+  AJUSTE_NEGATIVO
+  DEVOLUCAO
+  PERDA
+  TRANSFERENCIA
+}
+
+enum OrigemMovimentoEstoque {
+  COMPRA
+  ORDEM_SERVICO
+  VENDA
+  INVENTARIO
+  MANUAL
+  DEVOLUCAO_CLIENTE
+}
+
+enum StatusReservaEstoque {
+  ATIVA
+  CONSUMIDA
+  LIBERADA
+}
+
+enum StatusInventario {
+  ABERTO
+  FECHADO
+}
+
+enum StatusOrdemServico {
+  ABERTA
+  EM_DIAGNOSTICO
+  AGUARDANDO_APROVACAO
+  APROVADA
+  AGUARDANDO_PECA
+  EM_EXECUCAO
+  CONCLUIDA
+  ENTREGUE
+  FATURADA
+  REPROVADA
+  CANCELADA
+}
+
+enum PrioridadeOrdemServico {
+  BAIXA
+  NORMAL
+  ALTA
+  URGENTE
+}
+
+enum TipoOrdemServico {
+  MANUTENCAO
+  INSTALACAO
+  GARANTIA
+  ORCAMENTO
+}
+
+enum TipoItemOs {
+  PRODUTO
+  SERVICO
+}
+
+enum TipoNotaFiscal {
+  NFE
+  NFSE
+  NFCE
+}
+
+enum FinalidadeNotaFiscal {
+  NORMAL
+  COMPLEMENTAR
+  AJUSTE
+  DEVOLUCAO
+}
+
+enum OperacaoNotaFiscal {
+  SAIDA
+  ENTRADA
+}
+
+enum StatusNotaFiscal {
+  RASCUNHO
+  VALIDANDO
+  PROCESSANDO
+  AUTORIZADA
+  REJEITADA
+  ERRO_COMUNICACAO
+  CANCELADA
+}
+
+enum TipoEventoNotaFiscal {
+  ENVIO
+  AUTORIZACAO
+  REJEICAO
+  CANCELAMENTO
+  CARTA_CORRECAO
+}
+
+enum TipoCategoriaFinanceira {
+  RECEITA
+  DESPESA
+}
+
+enum TipoContaFinanceira {
+  CAIXA
+  BANCO
+  CARTAO
+}
+
+enum TipoTitulo {
+  RECEBER
+  PAGAR
+}
+
+enum StatusTitulo {
+  ABERTO
+  PARCIAL
+  PAGO
+  VENCIDO
+  CANCELADO
+  RENEGOCIADO
+}
+
+enum TipoMovimentoCaixa {
+  CREDITO
+  DEBITO
+}
+
+enum OrigemMovimentoCaixa {
+  BAIXA
+  TRANSFERENCIA
+  AJUSTE
+}
+
+// ---------- Módulo transversal ----------
+
+model Usuario {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome          String    @db.VarChar(120)
+  email         String    @unique @db.Citext
+  senhaHash     String    @map("senha_hash")
+  papel         PapelUsuario
+  ativo         Boolean   @default(true)
+  ultimoLoginEm DateTime? @map("ultimo_login_em") @db.Timestamptz()
+  criadoEm      DateTime  @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm  DateTime  @updatedAt @map("atualizado_em") @db.Timestamptz()
+
+  permissoes           UsuarioPermissao[]
+  refreshTokens        RefreshToken[]
+  auditorias           Auditoria[]
+  osComoTecnico        OrdemServico[]     @relation("OsTecnico")
+  osAbertasPor         OrdemServico[]     @relation("OsAbertaPor")
+  osHistoricos         OsHistorico[]
+  osApontamentos       OsApontamento[]
+  osAnexos             OsAnexo[]
+  movimentosEstoque    MovimentoEstoque[]
+  inventarios          Inventario[]
+  baixas               Baixa[]
+
+  @@map("usuarios")
+}
+
+model UsuarioPermissao {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuarioId      String   @map("usuario_id") @db.Uuid
+  permissao      String   @db.VarChar(60)
+  concedidaPorId String?  @map("concedida_por_id") @db.Uuid
+  criadoEm       DateTime @default(now()) @map("criado_em") @db.Timestamptz()
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@map("usuario_permissoes")
+}
+
+model RefreshToken {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuarioId  String    @map("usuario_id") @db.Uuid
+  tokenHash  String    @map("token_hash")
+  familiaId  String    @map("familia_id") @db.Uuid
+  expiraEm   DateTime  @map("expira_em") @db.Timestamptz()
+  revogadoEm DateTime? @map("revogado_em") @db.Timestamptz()
+  ip         String?   @db.Inet
+  userAgent  String?   @map("user_agent")
+  criadoEm   DateTime  @default(now()) @map("criado_em") @db.Timestamptz()
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@index([familiaId])
+  @@map("refresh_tokens")
+}
+
+// Append-only — toda escrita relevante grava aqui.
+model Auditoria {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuarioId   String?  @map("usuario_id") @db.Uuid
+  entidade    String   @db.VarChar(60)
+  entidadeId  String   @map("entidade_id") @db.Uuid
+  acao        String   @db.VarChar(40)
+  dadosAntes  Json?    @map("dados_antes")
+  dadosDepois Json?    @map("dados_depois")
+  ip          String?  @db.Inet
+  userAgent   String?  @map("user_agent")
+  criadoEm    DateTime @default(now()) @map("criado_em") @db.Timestamptz()
+
+  usuario Usuario? @relation(fields: [usuarioId], references: [id])
+
+  @@index([entidade, entidadeId])
+  @@map("auditoria")
+}
+
+// Chave-valor de configuração (alíquotas, numeração, prazos padrão).
+model Parametro {
+  chave String @id @db.VarChar(80)
+  valor Json
+
+  @@map("parametros")
+}
+
+// ---------- Módulo Clientes ----------
+
+model Cliente {
+  id                 String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  codigo             Int        @default(autoincrement())
+  tipoPessoa         TipoPessoa @map("tipo_pessoa")
+  nome               String     @db.VarChar(150)
+  nomeFantasia       String?    @map("nome_fantasia") @db.VarChar(150)
+  documento          String?    @db.VarChar(14)
+  inscricaoEstadual  String?    @map("inscricao_estadual") @db.VarChar(20)
+  inscricaoMunicipal String?    @map("inscricao_municipal") @db.VarChar(20)
+  email              String?    @db.Citext
+  telefone           String?    @db.VarChar(20)
+  celular            String?    @db.VarChar(20)
+  observacoes        String?
+  limiteCredito      Decimal    @default(0) @map("limite_credito") @db.Decimal(14, 2)
+  bloqueado          Boolean    @default(false)
+  motivoBloqueio     String?    @map("motivo_bloqueio")
+  documentoPendente  Boolean    @default(false) @map("documento_pendente")
+  ativo              Boolean    @default(true)
+  criadoEm           DateTime   @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm       DateTime   @updatedAt @map("atualizado_em") @db.Timestamptz()
+
+  enderecos     ClienteEndereco[]
+  contatos      ClienteContato[]
+  equipamentos  Equipamento[]
+  ordensServico OrdemServico[]
+  notasFiscais  NotaFiscal[]
+  titulos       Titulo[]
+
+  @@unique([codigo])
+  @@index([documento])
+  @@map("clientes")
+}
+
+model ClienteEndereco {
+  id           String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clienteId    String              @map("cliente_id") @db.Uuid
+  tipo         TipoEnderecoCliente
+  cep          String              @db.VarChar(8)
+  logradouro   String              @db.VarChar(150)
+  numero       String              @db.VarChar(20)
+  complemento  String?             @db.VarChar(60)
+  bairro       String              @db.VarChar(80)
+  cidade       String              @db.VarChar(80)
+  uf           String              @db.Char(2)
+  codigoIbge   String?             @map("codigo_ibge") @db.VarChar(7)
+  principal    Boolean             @default(false)
+  criadoEm     DateTime            @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm DateTime            @updatedAt @map("atualizado_em") @db.Timestamptz()
+
+  cliente Cliente @relation(fields: [clienteId], references: [id])
+
+  @@index([clienteId])
+  @@map("cliente_enderecos")
+}
+
+model ClienteContato {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clienteId    String   @map("cliente_id") @db.Uuid
+  nome         String   @db.VarChar(120)
+  cargo        String?  @db.VarChar(80)
+  email        String?  @db.Citext
+  telefone     String?  @db.VarChar(20)
+  principal    Boolean  @default(false)
+  criadoEm     DateTime @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm DateTime @updatedAt @map("atualizado_em") @db.Timestamptz()
+
+  cliente Cliente @relation(fields: [clienteId], references: [id])
+
+  @@index([clienteId])
+  @@map("cliente_contatos")
+}
+
+model Equipamento {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clienteId    String   @map("cliente_id") @db.Uuid
+  tipo         String   @db.VarChar(80)
+  marca        String?  @db.VarChar(80)
+  modelo       String?  @db.VarChar(80)
+  numeroSerie  String?  @map("numero_serie") @db.VarChar(80)
+  identificador String? @db.VarChar(80)
+  acessorios   String?
+  observacoes  String?
+  substituiId  String?  @map("substitui_id") @db.Uuid
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm DateTime @updatedAt @map("atualizado_em") @db.Timestamptz()
+
+  cliente         Cliente        @relation(fields: [clienteId], references: [id])
+  substitui       Equipamento?   @relation("EquipamentoSubstituicao", fields: [substituiId], references: [id])
+  substituidoPor  Equipamento[]  @relation("EquipamentoSubstituicao")
+  ordensServico   OrdemServico[]
+
+  @@index([clienteId, numeroSerie])
+  @@map("equipamentos")
+}
+
+// ---------- Módulo Estoque ----------
+
+model CategoriaProduto {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome     String  @db.VarChar(80)
+  paiId    String? @map("pai_id") @db.Uuid
+  ativo    Boolean @default(true)
+  criadoEm DateTime @default(now()) @map("criado_em") @db.Timestamptz()
+
+  pai       CategoriaProduto?  @relation("CategoriaProdutoHierarquia", fields: [paiId], references: [id])
+  filhas    CategoriaProduto[] @relation("CategoriaProdutoHierarquia")
+  produtos  Produto[]
+
+  @@map("categorias_produto")
+}
+
+// Estrutura essencial equivalente a Cliente (PF/PJ, documento, contato, endereço).
+model Fornecedor {
+  id                String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tipoPessoa        TipoPessoa @map("tipo_pessoa")
+  nome              String     @db.VarChar(150)
+  nomeFantasia      String?    @map("nome_fantasia") @db.VarChar(150)
+  documento         String?    @db.VarChar(14)
+  inscricaoEstadual String?    @map("inscricao_estadual") @db.VarChar(20)
+  email             String?    @db.Citext
+  telefone          String?    @db.VarChar(20)
+  celular           String?    @db.VarChar(20)
+  cep               String?    @db.VarChar(8)
+  logradouro        String?    @db.VarChar(150)
+  numero            String?    @db.VarChar(20)
+  complemento       String?    @db.VarChar(60)
+  bairro            String?    @db.VarChar(80)
+  cidade            String?    @db.VarChar(80)
+  uf                String?    @db.Char(2)
+  codigoIbge        String?    @map("codigo_ibge") @db.VarChar(7)
+  ativo             Boolean    @default(true)
+  criadoEm          DateTime   @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm      DateTime   @updatedAt @map("atualizado_em") @db.Timestamptz()
+
+  produtos Produto[]
+  titulos  Titulo[]
+
+  @@index([documento])
+  @@map("fornecedores")
+}
+
+model Produto {
+  id                 String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sku                String      @unique @db.VarChar(40)
+  codigoBarras       String?     @map("codigo_barras") @db.VarChar(20)
+  descricao          String      @db.VarChar(200)
+  categoriaId        String?     @map("categoria_id") @db.Uuid
+  fornecedorPadraoId String?     @map("fornecedor_padrao_id") @db.Uuid
+  unidade            String      @db.VarChar(6)
+  tipo               TipoProduto
+  precoCustoMedio    Decimal     @default(0) @map("preco_custo_medio") @db.Decimal(14, 4)
+  precoVenda         Decimal     @map("preco_venda") @db.Decimal(14, 2)
+  margemPadrao       Decimal?    @map("margem_padrao") @db.Decimal(7, 4)
+  saldo              Decimal     @default(0) @db.Decimal(14, 3)
+  saldoReservado     Decimal     @default(0) @map("saldo_reservado") @db.Decimal(14, 3)
+  estoqueMinimo      Decimal?    @map("estoque_minimo") @db.Decimal(14, 3)
+  estoqueMaximo      Decimal?    @map("estoque_maximo") @db.Decimal(14, 3)
+  localizacao        String?     @db.VarChar(40)
+  ncm                String?     @db.VarChar(10)
+  cfopPadrao         String?     @map("cfop_padrao") @db.VarChar(10)
+  cest               String?     @db.VarChar(10)
+  origemFiscal       Int?        @map("origem_fiscal") @db.SmallInt
+  controlaEstoque    Boolean     @default(true) @map("controla_estoque")
+  permiteNegativo    Boolean     @default(false) @map("permite_negativo")
+  ativo              Boolean     @default(true)
+  criadoEm           DateTime    @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm       DateTime    @updatedAt @map("atualizado_em") @db.Timestamptz()
+
+  categoria        CategoriaProduto?  @relation(fields: [categoriaId], references: [id])
+  fornecedorPadrao Fornecedor?        @relation(fields: [fornecedorPadraoId], references: [id])
+  movimentos       MovimentoEstoque[]
+  reservas         ReservaEstoque[]
+  osItens          OsItem[]
+  notaFiscalItens  NotaFiscalItem[]
+  inventarioItens  InventarioItem[]
+
+  @@map("produtos")
+}
+
+// Livro-razão do estoque — append-only (ADR-003).
+model MovimentoEstoque {
+  id             String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  produtoId      String                 @map("produto_id") @db.Uuid
+  tipo           TipoMovimentoEstoque
+  origem         OrigemMovimentoEstoque
+  origemId       String?                @map("origem_id") @db.Uuid
+  quantidade     Decimal                @db.Decimal(14, 3)
+  custoUnitario  Decimal?               @map("custo_unitario") @db.Decimal(14, 4)
+  saldoApos      Decimal                @map("saldo_apos") @db.Decimal(14, 3)
+  custoMedioApos Decimal                @map("custo_medio_apos") @db.Decimal(14, 4)
+  documento      String?                @db.VarChar(60)
+  motivo         String?
+  usuarioId      String                 @map("usuario_id") @db.Uuid
+  criadoEm       DateTime               @default(now()) @map("criado_em") @db.Timestamptz()
+
+  produto            Produto              @relation(fields: [produtoId], references: [id])
+  usuario             Usuario             @relation(fields: [usuarioId], references: [id])
+  inventarioItemGerado InventarioItem[]
+
+  @@index([produtoId, criadoEm])
+  @@index([origem, origemId])
+  @@map("movimentos_estoque")
+}
+
+model ReservaEstoque {
+  id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  produtoId      String               @map("produto_id") @db.Uuid
+  ordemServicoId String               @map("ordem_servico_id") @db.Uuid
+  quantidade     Decimal              @db.Decimal(14, 3)
+  status         StatusReservaEstoque @default(ATIVA)
+  criadoEm       DateTime             @default(now()) @map("criado_em") @db.Timestamptz()
+
+  produto      Produto      @relation(fields: [produtoId], references: [id])
+  ordemServico OrdemServico @relation(fields: [ordemServicoId], references: [id])
+
+  @@index([produtoId])
+  @@index([ordemServicoId])
+  @@map("reservas_estoque")
+}
+
+model Inventario {
+  id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  data          DateTime         @db.Date
+  status        StatusInventario @default(ABERTO)
+  responsavelId String           @map("responsavel_id") @db.Uuid
+  criadoEm      DateTime         @default(now()) @map("criado_em") @db.Timestamptz()
+
+  responsavel Usuario          @relation(fields: [responsavelId], references: [id])
+  itens       InventarioItem[]
+
+  @@map("inventarios")
+}
+
+model InventarioItem {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  inventarioId      String   @map("inventario_id") @db.Uuid
+  produtoId         String   @map("produto_id") @db.Uuid
+  saldoSistema      Decimal  @map("saldo_sistema") @db.Decimal(14, 3)
+  saldoContado      Decimal  @map("saldo_contado") @db.Decimal(14, 3)
+  diferenca         Decimal  @db.Decimal(14, 3)
+  movimentoGeradoId String?  @map("movimento_gerado_id") @db.Uuid
+
+  inventario      Inventario        @relation(fields: [inventarioId], references: [id])
+  produto         Produto           @relation(fields: [produtoId], references: [id])
+  movimentoGerado MovimentoEstoque? @relation(fields: [movimentoGeradoId], references: [id])
+
+  @@index([inventarioId])
+  @@map("inventario_itens")
+}
+
+// ---------- Módulo Ordem de Serviço ----------
+
+model Servico {
+  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  codigo                 String   @db.VarChar(30)
+  descricao              String   @db.VarChar(200)
+  preco                  Decimal  @db.Decimal(14, 2)
+  tempoEstimadoMin       Int?     @map("tempo_estimado_min")
+  codigoServicoMunicipal String?  @map("codigo_servico_municipal") @db.VarChar(20)
+  aliquotaIss            Decimal? @map("aliquota_iss") @db.Decimal(7, 4)
+  ativo                  Boolean  @default(true)
+  criadoEm               DateTime @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm           DateTime @updatedAt @map("atualizado_em") @db.Timestamptz()
+
+  osItens         OsItem[]
+  notaFiscalItens NotaFiscalItem[]
+
+  @@map("servicos")
+}
+
+model OrdemServico {
+  id                   String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  numero               Int                     @unique @default(autoincrement())
+  clienteId            String                  @map("cliente_id") @db.Uuid
+  equipamentoId        String?                 @map("equipamento_id") @db.Uuid
+  tecnicoId            String?                 @map("tecnico_id") @db.Uuid
+  abertaPorId          String                  @map("aberta_por_id") @db.Uuid
+  status               StatusOrdemServico      @default(ABERTA)
+  prioridade           PrioridadeOrdemServico  @default(NORMAL)
+  tipo                 TipoOrdemServico
+  descricaoProblema    String                  @map("descricao_problema")
+  diagnostico          String?
+  solucao              String?
+  valorProdutos        Decimal                 @default(0) @map("valor_produtos") @db.Decimal(14, 2)
+  valorServicos        Decimal                 @default(0) @map("valor_servicos") @db.Decimal(14, 2)
+  desconto             Decimal                 @default(0) @db.Decimal(14, 2)
+  acrescimo            Decimal                 @default(0) @db.Decimal(14, 2)
+  valorTotal           Decimal                 @default(0) @map("valor_total") @db.Decimal(14, 2)
+  garantiaDias         Int?                    @map("garantia_dias")
+  previsaoEntrega      DateTime?               @map("previsao_entrega") @db.Timestamptz()
+  aprovadaEm           DateTime?               @map("aprovada_em") @db.Timestamptz()
+  aprovadaPor          String?                 @map("aprovada_por") @db.VarChar(120)
+  finalizadaEm         DateTime?               @map("finalizada_em") @db.Timestamptz()
+  canceladaEm          DateTime?               @map("cancelada_em") @db.Timestamptz()
+  motivoCancelamento   String?                 @map("motivo_cancelamento")
+  osOrigemId           String?                 @map("os_origem_id") @db.Uuid
+  observacoesInternas  String?                 @map("observacoes_internas")
+  criadoEm             DateTime                @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm         DateTime                @updatedAt @map("atualizado_em") @db.Timestamptz()
+
+  cliente       Cliente          @relation(fields: [clienteId], references: [id])
+  equipamento   Equipamento?     @relation(fields: [equipamentoId], references: [id])
+  tecnico       Usuario?         @relation("OsTecnico", fields: [tecnicoId], references: [id])
+  abertaPor     Usuario          @relation("OsAbertaPor", fields: [abertaPorId], references: [id])
+  osOrigem      OrdemServico?    @relation("OsGarantia", fields: [osOrigemId], references: [id])
+  osGarantias   OrdemServico[]   @relation("OsGarantia")
+
+  itens             OsItem[]
+  apontamentos      OsApontamento[]
+  historico         OsHistorico[]
+  anexos            OsAnexo[]
+  reservasEstoque   ReservaEstoque[]
+  notasFiscais      NotaFiscal[]
+  titulos           Titulo[]
+
+  @@index([status])
+  @@index([clienteId])
+  @@map("ordens_servico")
+}
+
+model OsItem {
+  id              String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ordemServicoId  String     @map("ordem_servico_id") @db.Uuid
+  tipo            TipoItemOs
+  produtoId       String?    @map("produto_id") @db.Uuid
+  servicoId       String?    @map("servico_id") @db.Uuid
+  descricao       String     @db.VarChar(200)
+  quantidade      Decimal    @db.Decimal(14, 3)
+  precoUnitario   Decimal    @map("preco_unitario") @db.Decimal(14, 2)
+  desconto        Decimal    @default(0) @db.Decimal(14, 2)
+  valorTotal      Decimal    @map("valor_total") @db.Decimal(14, 2)
+  custoUnitario   Decimal?   @map("custo_unitario") @db.Decimal(14, 4)
+  baixadoEstoque  Boolean    @default(false) @map("baixado_estoque")
+  criadoEm        DateTime   @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm    DateTime   @updatedAt @map("atualizado_em") @db.Timestamptz()
+
+  ordemServico OrdemServico @relation(fields: [ordemServicoId], references: [id], onDelete: Cascade)
+  produto      Produto?     @relation(fields: [produtoId], references: [id])
+  servico      Servico?     @relation(fields: [servicoId], references: [id])
+
+  @@index([ordemServicoId])
+  @@map("os_itens")
+}
+
+model OsApontamento {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ordemServicoId String    @map("ordem_servico_id") @db.Uuid
+  tecnicoId      String    @map("tecnico_id") @db.Uuid
+  inicio         DateTime  @db.Timestamptz()
+  fim            DateTime? @db.Timestamptz()
+  descricao      String?
+  faturavel      Boolean   @default(true)
+  criadoEm       DateTime  @default(now()) @map("criado_em") @db.Timestamptz()
+
+  ordemServico OrdemServico @relation(fields: [ordemServicoId], references: [id])
+  tecnico      Usuario      @relation(fields: [tecnicoId], references: [id])
+
+  @@index([ordemServicoId])
+  @@map("os_apontamentos")
+}
+
+model OsHistorico {
+  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ordemServicoId  String              @map("ordem_servico_id") @db.Uuid
+  statusAnterior  StatusOrdemServico? @map("status_anterior")
+  statusNovo      StatusOrdemServico  @map("status_novo")
+  usuarioId       String              @map("usuario_id") @db.Uuid
+  observacao      String?
+  criadoEm        DateTime            @default(now()) @map("criado_em") @db.Timestamptz()
+
+  ordemServico OrdemServico @relation(fields: [ordemServicoId], references: [id])
+  usuario      Usuario      @relation(fields: [usuarioId], references: [id])
+
+  @@index([ordemServicoId])
+  @@map("os_historico")
+}
+
+model OsAnexo {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ordemServicoId String   @map("ordem_servico_id") @db.Uuid
+  nome           String   @db.VarChar(150)
+  caminho        String
+  mime           String   @db.VarChar(100)
+  tamanho        Int
+  usuarioId      String   @map("usuario_id") @db.Uuid
+  criadoEm       DateTime @default(now()) @map("criado_em") @db.Timestamptz()
+
+  ordemServico OrdemServico @relation(fields: [ordemServicoId], references: [id])
+  usuario      Usuario      @relation(fields: [usuarioId], references: [id])
+
+  @@index([ordemServicoId])
+  @@map("os_anexos")
+}
+
+// ---------- Módulo Notas Fiscais ----------
+
+model NotaFiscal {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tipo               TipoNotaFiscal
+  finalidade         FinalidadeNotaFiscal @default(NORMAL)
+  operacao           OperacaoNotaFiscal
+  numero             Int?
+  serie              Int?
+  chaveAcesso        String?              @unique @map("chave_acesso") @db.Char(44)
+  status             StatusNotaFiscal     @default(RASCUNHO)
+  clienteId          String?              @map("cliente_id") @db.Uuid
+  ordemServicoId     String?              @map("ordem_servico_id") @db.Uuid
+  naturezaOperacao   String?              @map("natureza_operacao") @db.VarChar(60)
+  dataEmissao        DateTime?            @map("data_emissao") @db.Timestamptz()
+  dataAutorizacao    DateTime?            @map("data_autorizacao") @db.Timestamptz()
+  valorProdutos      Decimal              @default(0) @map("valor_produtos") @db.Decimal(14, 2)
+  valorServicos      Decimal              @default(0) @map("valor_servicos") @db.Decimal(14, 2)
+  valorDesconto      Decimal              @default(0) @map("valor_desconto") @db.Decimal(14, 2)
+  valorFrete         Decimal              @default(0) @map("valor_frete") @db.Decimal(14, 2)
+  valorTotal         Decimal              @default(0) @map("valor_total") @db.Decimal(14, 2)
+  baseIcms           Decimal?             @map("base_icms") @db.Decimal(14, 2)
+  valorIcms          Decimal?             @map("valor_icms") @db.Decimal(14, 2)
+  valorIpi           Decimal?             @map("valor_ipi") @db.Decimal(14, 2)
+  valorPis           Decimal?             @map("valor_pis") @db.Decimal(14, 2)
+  valorCofins        Decimal?             @map("valor_cofins") @db.Decimal(14, 2)
+  valorIss           Decimal?             @map("valor_iss") @db.Decimal(14, 2)
+  provedor           String?              @db.VarChar(30)
+  provedorRef        String?              @map("provedor_ref") @db.VarChar(80)
+  protocolo          String?              @db.VarChar(30)
+  motivoRejeicao     String?              @map("motivo_rejeicao")
+  xmlCaminho         String?              @map("xml_caminho")
+  pdfCaminho         String?              @map("pdf_caminho")
+  payloadEnvio       Json?                @map("payload_envio")
+  payloadRetorno     Json?                @map("payload_retorno")
+  canceladaEm        DateTime?            @map("cancelada_em") @db.Timestamptz()
+  motivoCancelamento String?              @map("motivo_cancelamento")
+  criadoEm           DateTime             @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm       DateTime             @updatedAt @map("atualizado_em") @db.Timestamptz()
+
+  cliente      Cliente?         @relation(fields: [clienteId], references: [id])
+  ordemServico OrdemServico?    @relation(fields: [ordemServicoId], references: [id])
+  itens        NotaFiscalItem[]
+  eventos      NotaFiscalEvento[]
+  titulos      Titulo[]
+
+  @@index([status])
+  @@index([ordemServicoId])
+  @@map("notas_fiscais")
+}
+
+model NotaFiscalItem {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  notaFiscalId   String   @map("nota_fiscal_id") @db.Uuid
+  numeroItem     Int      @map("numero_item")
+  produtoId      String?  @map("produto_id") @db.Uuid
+  servicoId      String?  @map("servico_id") @db.Uuid
+  descricao      String   @db.VarChar(200)
+  ncm            String?  @db.VarChar(10)
+  cfop           String?  @db.VarChar(10)
+  cstIcms        String?  @map("cst_icms") @db.VarChar(10)
+  unidade        String   @db.VarChar(6)
+  quantidade     Decimal  @db.Decimal(14, 3)
+  valorUnitario  Decimal  @map("valor_unitario") @db.Decimal(14, 2)
+  valorTotal     Decimal  @map("valor_total") @db.Decimal(14, 2)
+  valorDesconto  Decimal  @default(0) @map("valor_desconto") @db.Decimal(14, 2)
+  baseIcms       Decimal? @map("base_icms") @db.Decimal(14, 2)
+  aliquotaIcms   Decimal? @map("aliquota_icms") @db.Decimal(7, 4)
+  valorIcms      Decimal? @map("valor_icms") @db.Decimal(14, 2)
+  aliquotaIss    Decimal? @map("aliquota_iss") @db.Decimal(7, 4)
+  valorIss       Decimal? @map("valor_iss") @db.Decimal(14, 2)
+
+  notaFiscal NotaFiscal @relation(fields: [notaFiscalId], references: [id], onDelete: Cascade)
+  produto    Produto?   @relation(fields: [produtoId], references: [id])
+  servico    Servico?   @relation(fields: [servicoId], references: [id])
+
+  @@index([notaFiscalId])
+  @@map("nota_fiscal_itens")
+}
+
+model NotaFiscalEvento {
+  id           String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  notaFiscalId String                @map("nota_fiscal_id") @db.Uuid
+  tipo         TipoEventoNotaFiscal
+  protocolo    String?               @db.VarChar(30)
+  mensagem     String?
+  payload      Json?
+  criadoEm     DateTime              @default(now()) @map("criado_em") @db.Timestamptz()
+
+  notaFiscal NotaFiscal @relation(fields: [notaFiscalId], references: [id])
+
+  @@index([notaFiscalId])
+  @@map("nota_fiscal_eventos")
+}
+
+// ---------- Módulo Financeiro ----------
+
+model CategoriaFinanceira {
+  id       String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome     String                  @unique @db.VarChar(80)
+  tipo     TipoCategoriaFinanceira
+  paiId    String?                 @map("pai_id") @db.Uuid
+  ativo    Boolean                 @default(true)
+  criadoEm DateTime                @default(now()) @map("criado_em") @db.Timestamptz()
+
+  pai     CategoriaFinanceira?  @relation("CategoriaFinanceiraHierarquia", fields: [paiId], references: [id])
+  filhas  CategoriaFinanceira[] @relation("CategoriaFinanceiraHierarquia")
+  titulos Titulo[]
+
+  @@map("categorias_financeiras")
+}
+
+model ContaFinanceira {
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome          String              @unique @db.VarChar(80)
+  tipo          TipoContaFinanceira
+  banco         String?             @db.VarChar(80)
+  agencia       String?             @db.VarChar(20)
+  conta         String?             @db.VarChar(20)
+  saldoInicial  Decimal             @default(0) @map("saldo_inicial") @db.Decimal(14, 2)
+  saldoAtual    Decimal             @default(0) @map("saldo_atual") @db.Decimal(14, 2)
+  ativo         Boolean             @default(true)
+  criadoEm      DateTime            @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm  DateTime            @updatedAt @map("atualizado_em") @db.Timestamptz()
+
+  formasPagamentoPadrao FormaPagamento[]
+  baixas                Baixa[]
+  movimentosCaixa       MovimentoCaixa[]
+
+  @@map("contas_financeiras")
+}
+
+model FormaPagamento {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome                 String   @unique @db.VarChar(60)
+  tipo                 String   @db.VarChar(20)
+  prazoCompensacaoDias Int      @default(0) @map("prazo_compensacao_dias")
+  taxaPercentual       Decimal  @default(0) @map("taxa_percentual") @db.Decimal(7, 4)
+  contaPadraoId        String?  @map("conta_padrao_id") @db.Uuid
+  ativo                Boolean  @default(true)
+  criadoEm             DateTime @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm         DateTime @updatedAt @map("atualizado_em") @db.Timestamptz()
+
+  contaPadrao ContaFinanceira? @relation(fields: [contaPadraoId], references: [id])
+  titulos     Titulo[]
+  baixas      Baixa[]
+
+  @@map("formas_pagamento")
+}
+
+model Titulo {
+  id                 String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tipo               TipoTitulo
+  numero             String       @db.VarChar(30)
+  clienteId          String?      @map("cliente_id") @db.Uuid
+  fornecedorId       String?      @map("fornecedor_id") @db.Uuid
+  ordemServicoId     String?      @map("ordem_servico_id") @db.Uuid
+  notaFiscalId       String?      @map("nota_fiscal_id") @db.Uuid
+  categoriaId        String       @map("categoria_id") @db.Uuid
+  descricao          String       @db.VarChar(200)
+  parcela            Int?         @db.SmallInt
+  totalParcelas      Int?         @map("total_parcelas") @db.SmallInt
+  valorOriginal      Decimal      @map("valor_original") @db.Decimal(14, 2)
+  valorDesconto      Decimal      @default(0) @map("valor_desconto") @db.Decimal(14, 2)
+  valorJuros         Decimal      @default(0) @map("valor_juros") @db.Decimal(14, 2)
+  valorMulta         Decimal      @default(0) @map("valor_multa") @db.Decimal(14, 2)
+  valorPago          Decimal      @default(0) @map("valor_pago") @db.Decimal(14, 2)
+  valorSaldo         Decimal      @map("valor_saldo") @db.Decimal(14, 2)
+  dataEmissao        DateTime     @map("data_emissao") @db.Date
+  dataVencimento     DateTime     @map("data_vencimento") @db.Date
+  dataCompetencia    DateTime     @map("data_competencia") @db.Date
+  status             StatusTitulo @default(ABERTO)
+  formaPagamentoId   String?      @map("forma_pagamento_id") @db.Uuid
+  tituloOrigemId     String?      @map("titulo_origem_id") @db.Uuid
+  motivoCancelamento String?      @map("motivo_cancelamento")
+  observacoes        String?
+  criadoEm           DateTime     @default(now()) @map("criado_em") @db.Timestamptz()
+  atualizadoEm       DateTime     @updatedAt @map("atualizado_em") @db.Timestamptz()
+
+  cliente        Cliente?             @relation(fields: [clienteId], references: [id])
+  fornecedor     Fornecedor?          @relation(fields: [fornecedorId], references: [id])
+  ordemServico   OrdemServico?        @relation(fields: [ordemServicoId], references: [id])
+  notaFiscal     NotaFiscal?          @relation(fields: [notaFiscalId], references: [id])
+  categoria      CategoriaFinanceira  @relation(fields: [categoriaId], references: [id])
+  formaPagamento FormaPagamento?      @relation(fields: [formaPagamentoId], references: [id])
+  tituloOrigem   Titulo?              @relation("TituloRenegociacao", fields: [tituloOrigemId], references: [id])
+  renegociacoes  Titulo[]             @relation("TituloRenegociacao")
+  baixas         Baixa[]
+
+  @@index([tipo, status, dataVencimento])
+  @@index([clienteId])
+  @@index([ordemServicoId])
+  @@map("titulos")
+}
+
+model Baixa {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tituloId          String    @map("titulo_id") @db.Uuid
+  dataPagamento     DateTime  @map("data_pagamento") @db.Date
+  valor             Decimal   @db.Decimal(14, 2)
+  juros             Decimal   @default(0) @db.Decimal(14, 2)
+  multa             Decimal   @default(0) @db.Decimal(14, 2)
+  desconto          Decimal   @default(0) @db.Decimal(14, 2)
+  formaPagamentoId  String    @map("forma_pagamento_id") @db.Uuid
+  contaFinanceiraId String    @map("conta_financeira_id") @db.Uuid
+  observacao        String?
+  usuarioId         String    @map("usuario_id") @db.Uuid
+  estornadaEm       DateTime? @map("estornada_em") @db.Timestamptz()
+  motivoEstorno     String?   @map("motivo_estorno")
+  criadoEm          DateTime  @default(now()) @map("criado_em") @db.Timestamptz()
+
+  titulo          Titulo          @relation(fields: [tituloId], references: [id])
+  formaPagamento  FormaPagamento  @relation(fields: [formaPagamentoId], references: [id])
+  contaFinanceira ContaFinanceira @relation(fields: [contaFinanceiraId], references: [id])
+  usuario         Usuario         @relation(fields: [usuarioId], references: [id])
+  movimentoCaixa  MovimentoCaixa?
+
+  @@index([tituloId])
+  @@map("baixas")
+}
+
+model MovimentoCaixa {
+  id                String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contaFinanceiraId String                @map("conta_financeira_id") @db.Uuid
+  tipo              TipoMovimentoCaixa
+  valor             Decimal               @db.Decimal(14, 2)
+  data              DateTime              @db.Date
+  origem            OrigemMovimentoCaixa
+  origemId          String?               @map("origem_id") @db.Uuid
+  baixaId           String?               @unique @map("baixa_id") @db.Uuid
+  saldoApos         Decimal               @map("saldo_apos") @db.Decimal(14, 2)
+  descricao         String?
+  criadoEm          DateTime              @default(now()) @map("criado_em") @db.Timestamptz()
+
+  contaFinanceira ContaFinanceira @relation(fields: [contaFinanceiraId], references: [id])
+  baixa           Baixa?          @relation(fields: [baixaId], references: [id])
+
+  @@index([contaFinanceiraId, data])
+  @@map("movimentos_caixa")
+}

@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: technoloife
+          POSTGRES_PASSWORD: technoloife
+          POSTGRES_DB: technoloife
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U technoloife"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://technoloife:technoloife@localhost:5432/technoloife?schema=public
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci-secret-com-no-minimo-32-caracteres
+      FISCAL_PROVIDER: mock
+      STORAGE_PATH: ./storage
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm lint
+      - run: pnpm typecheck
+
+      - run: pnpm --filter api exec prisma migrate deploy
+
+      - run: pnpm test
