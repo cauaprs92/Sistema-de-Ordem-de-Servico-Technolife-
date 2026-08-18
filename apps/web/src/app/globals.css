@@ -21,9 +21,11 @@
   --destructive: 354 70% 45%;
   --destructive-foreground: 0 0% 100%;
 
-  --sidebar-background: 0 0% 100%;
-  --sidebar-border: 214 32% 91%;
-  --sidebar-active: 227 57% 95%;
+  /* Sidebar: navy escuro com header branco (onde a logo fica) — padrão de
+     referência aprovado. O item ativo usa a mesma cor de --secondary (vermelho). */
+  --sidebar-background: 227 55% 14%;
+  --sidebar-foreground: 215 25% 82%;
+  --sidebar-hover: 227 45% 20%;
 }
 
 body {

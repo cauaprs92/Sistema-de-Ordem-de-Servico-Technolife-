@@ -27,8 +27,8 @@ const config: Config = {
         },
         sidebar: {
           DEFAULT: 'hsl(var(--sidebar-background))',
-          border: 'hsl(var(--sidebar-border))',
-          active: 'hsl(var(--sidebar-active))',
+          foreground: 'hsl(var(--sidebar-foreground))',
+          hover: 'hsl(var(--sidebar-hover))',
         },
       },
       borderRadius: {
