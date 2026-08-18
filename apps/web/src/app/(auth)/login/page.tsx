@@ -1,13 +1,10 @@
 import { ShieldCheck } from 'lucide-react';
 import { Logo } from '@/components/layout/logo';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { PasswordInput } from '@/components/ui/password-input';
+import { LoginForm } from './login-form';
 
 /**
- * Tela estática — Sprint 0 (item 0.7). A ligação com POST /auth/login
- * (doc 08) entra na Sprint 1, junto com o restante do fluxo de autenticação.
+ * Sprint 0: layout final da tela, mas ainda sem POST /auth/login real (doc 08)
+ * — isso entra na Sprint 1. O envio do formulário está em ./login-form.tsx.
  */
 export default function LoginPage() {
   return (
@@ -41,34 +38,9 @@ export default function LoginPage() {
           </div>
 
           <h2 className="text-xl font-semibold">Entrar</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Entre com sua conta para continuar
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">Entre com sua conta para continuar</p>
 
-          <form className="mt-6 space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="email">E-mail</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="voce@technolife.com.br"
-                required
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="senha">Senha</Label>
-                <a href="#" className="text-xs font-medium text-secondary hover:underline">
-                  Esqueceu a senha?
-                </a>
-              </div>
-              <PasswordInput id="senha" name="senha" placeholder="••••••••••" required />
-            </div>
-
-            <Button type="submit">Entrar</Button>
-          </form>
+          <LoginForm />
         </div>
       </div>
     </main>

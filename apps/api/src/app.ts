@@ -1,15 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
+import jwt from '@fastify/jwt';
 import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
+import { ZodError } from 'zod';
+import { env } from './config/env.js';
+import { authRoutes } from './modules/auth/routes.js';
 import { ErroDeNegocio } from './shared/errors.js';
 
 export function buildApp(): FastifyInstance {
-  const isDev = process.env.NODE_ENV === 'development';
+  const isDev = env.NODE_ENV === 'development';
 
   const app = Fastify({
     logger: {
-      level: process.env.NODE_ENV === 'test' ? 'silent' : 'info',
+      level: env.NODE_ENV === 'test' ? 'silent' : 'info',
       redact: ['req.headers.authorization', '*.senha', '*.senhaHash', '*.token'],
       ...(isDev ? { transport: { target: 'pino-pretty' } } : {}),
     },
@@ -21,18 +25,44 @@ export function buildApp(): FastifyInstance {
   });
 
   app.register(helmet);
-  app.register(cors, { origin: [] }); // whitelist explícita por ambiente — sem "*" em produção (doc 09)
+
+  // Whitelist explícita por ambiente — sem "*" em produção (doc 09). O deploy real
+  // (Sprint 8) troca isso por uma lista vinda de env; em dev é sempre o Next local.
+  app.register(cors, {
+    origin: env.NODE_ENV === 'production' ? [] : ['http://localhost:3000'],
+  });
+
+  app.register(jwt, {
+    secret: env.JWT_SECRET,
+    sign: { expiresIn: env.JWT_EXPIRES_IN },
+  });
 
   app.get('/health', async () => ({ status: 'ok' }));
   app.get('/health/ready', async () => ({ status: 'ok' }));
 
-  app.setErrorHandler((error: FastifyError | ErroDeNegocio, request, reply) => {
+  app.register(authRoutes, { prefix: '/v1/auth' });
+
+  app.setErrorHandler((error: FastifyError | ErroDeNegocio | ZodError, request, reply) => {
     if (error instanceof ErroDeNegocio) {
       return reply.status(error.status).send({
         erro: {
           codigo: error.codigo,
           mensagem: error.message,
           detalhes: error.detalhes,
+          requestId: request.id,
+        },
+      });
+    }
+
+    if (error instanceof ZodError) {
+      return reply.status(422).send({
+        erro: {
+          codigo: 'VALIDACAO',
+          mensagem: 'Dados inválidos.',
+          detalhes: error.issues.map((issue) => ({
+            campo: issue.path.join('.'),
+            mensagem: issue.message,
+          })),
           requestId: request.id,
         },
       });

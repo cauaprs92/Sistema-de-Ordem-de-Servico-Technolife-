@@ -1,22 +1,20 @@
 import { PrismaClient } from '@prisma/client';
-import argon2 from 'argon2';
+import { gerarHashSenha } from '../src/infra/auth/hash.js';
 
 const prisma = new PrismaClient();
 
+const ADMIN_EMAIL = 'admin@technolife.com.br';
+const ADMIN_SENHA = 'admin123';
+
 async function main() {
-  const senhaHash = await argon2.hash('technolife@123', {
-    type: argon2.argon2id,
-    memoryCost: 19456,
-    timeCost: 2,
-    parallelism: 1,
-  });
+  const senhaHash = await gerarHashSenha(ADMIN_SENHA);
 
   await prisma.usuario.upsert({
-    where: { email: 'admin@technolife.com.br' },
-    update: {},
+    where: { email: ADMIN_EMAIL },
+    update: { senhaHash, ativo: true },
     create: {
       nome: 'Administrador',
-      email: 'admin@technolife.com.br',
+      email: ADMIN_EMAIL,
       senhaHash,
       papel: 'ADMIN',
     },
@@ -86,7 +84,7 @@ async function main() {
   });
 
   console.log('Seed concluído.');
-  console.log('  Admin: admin@technolife.com.br / technolife@123');
+  console.log(`  Admin: ${ADMIN_EMAIL} / ${ADMIN_SENHA}`);
   console.log(`  Categoria de produto padrão: ${categoriaAcessorios.nome}`);
 }
 

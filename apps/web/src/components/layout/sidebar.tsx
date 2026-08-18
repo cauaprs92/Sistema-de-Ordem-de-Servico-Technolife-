@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { LogOut } from 'lucide-react';
 import { cn } from '@/lib/cn';
+import { apiFetch } from '@/lib/api-client';
+import { limparSessao, obterRefreshToken, obterUsuarioSessao } from '@/lib/auth';
 import { Logo } from './logo';
 import { navItems } from './nav-items';
 
@@ -14,6 +16,24 @@ interface SidebarProps {
 
 export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const usuario = obterUsuarioSessao();
+
+  async function handleLogout() {
+    const refreshToken = obterRefreshToken();
+    limparSessao();
+    router.push('/login');
+
+    // Revoga no servidor depois de já ter tirado o usuário da tela — não faz
+    // sentido travar o logout esperando a rede.
+    if (refreshToken) {
+      await apiFetch('/auth/logout', {
+        method: 'POST',
+        body: JSON.stringify({ refreshToken }),
+        autenticado: false,
+      }).catch(() => {});
+    }
+  }
 
   return (
     <>
@@ -63,14 +83,17 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         <div className="border-t border-white/10 bg-sidebar p-3">
           <div className="flex items-center gap-2 rounded-md px-2 py-2">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-              A
+              {(usuario?.nome ?? '?').charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-white">admin</p>
-              <p className="truncate text-xs text-sidebar-foreground">Administração</p>
+              <p className="truncate text-sm font-medium text-white">
+                {usuario?.nome ?? 'Usuário'}
+              </p>
+              <p className="truncate text-xs text-sidebar-foreground">{usuario?.papel ?? '—'}</p>
             </div>
             <button
               type="button"
+              onClick={handleLogout}
               aria-label="Sair"
               className="rounded-md p-1.5 text-sidebar-foreground hover:bg-sidebar-hover hover:text-white"
             >

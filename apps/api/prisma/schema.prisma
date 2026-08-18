@@ -224,7 +224,7 @@ model UsuarioPermissao {
 model RefreshToken {
   id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   usuarioId  String    @map("usuario_id") @db.Uuid
-  tokenHash  String    @map("token_hash")
+  tokenHash  String    @unique @map("token_hash")
   familiaId  String    @map("familia_id") @db.Uuid
   expiraEm   DateTime  @map("expira_em") @db.Timestamptz()
   revogadoEm DateTime? @map("revogado_em") @db.Timestamptz()

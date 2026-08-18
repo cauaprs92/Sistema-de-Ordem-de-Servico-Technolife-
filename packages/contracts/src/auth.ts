@@ -4,10 +4,12 @@ import { z } from 'zod';
 
 export const papelUsuarioSchema = z.enum(['ADMIN', 'ATENDENTE', 'TECNICO', 'FINANCEIRO', 'ESTOQUE']);
 
+// Sem exigência de força de senha aqui — isso é regra de cadastro/troca de senha
+// (doc 09), não de login. Uma conta antiga com senha mais curta continua entrando.
 export const loginSchema = z
   .object({
-    email: z.string().email(),
-    senha: z.string().min(10),
+    email: z.string().email('E-mail inválido.'),
+    senha: z.string().min(1, 'Informe a senha.'),
   })
   .strict();
 
@@ -24,7 +26,7 @@ export const loginRespostaSchema = z.object({
 
 export const refreshSchema = z
   .object({
-    refreshToken: z.string(),
+    refreshToken: z.string().min(1, 'Informe o refresh token.'),
   })
   .strict();
 
