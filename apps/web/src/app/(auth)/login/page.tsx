@@ -15,7 +15,7 @@ export default function LoginPage() {
 
         <div className="p-8">
           <div className="mb-6 text-center">
-            <Logo className="flex flex-col items-center" size="lg" />
+            <Logo className="justify-center" size="lg" />
             <p className="mt-2 text-sm text-muted-foreground">Entre com sua conta para continuar</p>
           </div>
 
