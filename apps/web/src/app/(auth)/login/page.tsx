@@ -1,3 +1,4 @@
+import { Logo } from '@/components/layout/logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,26 +9,36 @@ import { Label } from '@/components/ui/label';
  */
 export default function LoginPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-muted px-4">
-      <div className="w-full max-w-sm rounded-lg border border-border bg-background p-8 shadow-sm">
-        <div className="mb-6 text-center">
-          <h1 className="text-xl font-semibold">Technoloife</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Entre com sua conta para continuar</p>
+    <main className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="w-full max-w-sm overflow-hidden rounded-lg border border-border shadow-sm">
+        <div className="h-1.5 w-full bg-gradient-to-r from-primary to-secondary" />
+
+        <div className="p-8">
+          <div className="mb-6 text-center">
+            <Logo className="justify-center text-2xl [&>span]:text-2xl" />
+            <p className="mt-2 text-sm text-muted-foreground">Entre com sua conta para continuar</p>
+          </div>
+
+          <form className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="email">E-mail</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                placeholder="voce@technoloife.com.br"
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="senha">Senha</Label>
+              <Input id="senha" name="senha" type="password" placeholder="••••••••••" required />
+            </div>
+
+            <Button type="submit">Entrar</Button>
+          </form>
         </div>
-
-        <form className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="email">E-mail</Label>
-            <Input id="email" name="email" type="email" placeholder="voce@technoloife.com.br" required />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="senha">Senha</Label>
-            <Input id="senha" name="senha" type="password" placeholder="••••••••••" required />
-          </div>
-
-          <Button type="submit">Entrar</Button>
-        </form>
       </div>
     </main>
   );
