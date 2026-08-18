@@ -12,7 +12,7 @@ export function Topbar() {
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-border bg-background px-6">
-      <h2 className="text-lg font-semibold">{paginaAtual?.label ?? 'Technoloife'}</h2>
+      <h2 className="text-lg font-semibold">{paginaAtual?.label ?? 'Technolife'}</h2>
 
       <div className="flex items-center gap-4">
         <button

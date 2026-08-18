@@ -15,7 +15,7 @@ export default function LoginPage() {
 
         <div className="p-8">
           <div className="mb-6 text-center">
-            <Logo className="justify-center text-2xl [&>span]:text-2xl" />
+            <Logo className="flex flex-col items-center" size="lg" />
             <p className="mt-2 text-sm text-muted-foreground">Entre com sua conta para continuar</p>
           </div>
 
@@ -26,7 +26,7 @@ export default function LoginPage() {
                 id="email"
                 name="email"
                 type="email"
-                placeholder="voce@technoloife.com.br"
+                placeholder="voce@technolife.com.br"
                 required
               />
             </div>

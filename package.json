@@ -1,5 +1,5 @@
 {
-  "name": "technoloife",
+  "name": "technolife",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -7,6 +7,14 @@
     "node": ">=22"
   },
   "packageManager": "pnpm@9.12.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cauaprs92/Sistema-de-Ordem-de-Servico-Technolife-.git"
+  },
+  "homepage": "https://github.com/cauaprs92/Sistema-de-Ordem-de-Servico-Technolife-#readme",
+  "bugs": {
+    "url": "https://github.com/cauaprs92/Sistema-de-Ordem-de-Servico-Technolife-/issues"
+  },
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",

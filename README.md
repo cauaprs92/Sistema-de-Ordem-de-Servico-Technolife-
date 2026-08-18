@@ -1,6 +1,6 @@
-# Technoloife — Sistema de Gestão
+# Technolife — Sistema de Gestão
 
-Sistema web de gestão para a **Technoloife**, cobrindo cinco módulos integrados:
+Sistema web de gestão para a **Technolife**, cobrindo cinco módulos integrados:
 Clientes, Estoque, Ordem de Serviço, Notas Fiscais e Financeiro.
 
 Stack: **Node.js + TypeScript** (API REST com Fastify) · **PostgreSQL + Prisma** ·
@@ -45,17 +45,23 @@ Sis-Technolife/
 
 ## Como rodar localmente
 
-Pré-requisitos: **Node.js 22+**, **pnpm** (`npm install -g pnpm`) e **Docker Desktop**.
+Pré-requisitos: **Node.js 22+** e **pnpm** (`npm install -g pnpm`). Além disso, um Postgres 16
+— via **Docker Desktop** (`pnpm docker:up` sobe Postgres + Redis) ou uma instalação local.
 
 ```bash
+# 0. Clonar o repositório
+git clone https://github.com/cauaprs92/Sistema-de-Ordem-de-Servico-Technolife-.git
+cd Sistema-de-Ordem-de-Servico-Technolife-
+
 # 1. Instalar dependências
 pnpm install
 
 # 2. Configurar variáveis de ambiente
 cp .env.example .env
-# gere um JWT_SECRET forte, por exemplo: openssl rand -base64 32
+# ajuste DATABASE_URL para o seu Postgres (usuário/senha/porta) e gere um
+# JWT_SECRET forte, por exemplo: openssl rand -base64 32 — NUNCA commitar o .env
 
-# 3. Subir Postgres e Redis
+# 3. Se for usar Postgres via Docker (pule se já tiver um Postgres local rodando)
 pnpm docker:up
 
 # 4. Rodar a primeira migration e o seed
@@ -68,7 +74,7 @@ pnpm dev
 
 - API em `http://localhost:3333` (`/health` para checar que subiu).
 - Web em `http://localhost:3000` (`/login`).
-- Usuário de desenvolvimento criado pelo seed: `admin@technoloife.com.br` / `technoloife@123`.
+- Usuário de desenvolvimento criado pelo seed: `admin@technolife.com.br` / `technolife@123`.
 
 ### Outros comandos úteis
 

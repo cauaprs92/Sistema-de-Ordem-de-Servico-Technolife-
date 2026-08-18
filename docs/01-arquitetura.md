@@ -60,7 +60,7 @@ continuam dentro da transação, não via evento.
 ## 3. Estrutura do monorepo
 
 ```
-technoloife/
+technolife/
 ├─ apps/
 │  ├─ api/                        # Fastify + Prisma
 │  │  ├─ prisma/

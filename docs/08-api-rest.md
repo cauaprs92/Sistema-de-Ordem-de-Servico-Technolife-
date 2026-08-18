@@ -1,6 +1,6 @@
 # 08 — API REST
 
-Base: `https://api.technoloife.com.br/v1` · Local: `http://localhost:3333/v1`
+Base: `https://api.technolife.com.br/v1` · Local: `http://localhost:3333/v1`
 Formato: JSON (UTF-8). Datas em ISO 8601 com timezone. Valores monetários como **string
 decimal** (`"1234.56"`) para não perder precisão em `float` de JavaScript.
 

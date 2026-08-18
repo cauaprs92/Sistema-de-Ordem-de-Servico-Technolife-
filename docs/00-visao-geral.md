@@ -2,12 +2,12 @@
 
 ## 1. Contexto
 
-A **Technoloife** precisa substituir controles dispersos (planilhas, cadernos, WhatsApp)
+A **Technolife** precisa substituir controles dispersos (planilhas, cadernos, WhatsApp)
 por um sistema único onde o atendimento ao cliente, a execução do serviço, a baixa de
 peças no estoque, a emissão da nota e o recebimento do dinheiro sejam **o mesmo fluxo**,
 não cinco processos paralelos.
 
-O sistema é **single-tenant**: atende uma única empresa (Technoloife), com múltiplos
+O sistema é **single-tenant**: atende uma única empresa (Technolife), com múltiplos
 usuários e papéis. Isso simplifica o modelo (sem coluna `tenant_id` em todas as tabelas),
 mas a arquitetura não impede uma evolução futura para multi-empresa.
 
@@ -105,7 +105,7 @@ Cliente chega
 | # | Assunto | Status |
 |---|---|---|
 | P1 | Emissão fiscal: provedor terceiro vs. SEFAZ direto | **Pendente** — sistema será construído com interface abstrata (doc 06) |
-| P2 | Regime tributário da Technoloife (Simples/Presumido) | **Pendente** — impacta cálculo de impostos na NF |
+| P2 | Regime tributário da Technolife (Simples/Presumido) | **Pendente** — impacta cálculo de impostos na NF |
 | P3 | Impressão de OS: térmica 80mm, A4 ou ambos | Assumido: **A4 (PDF)** no MVP |
 | P4 | Volume esperado de OS/mês | Assumido: **até ~1.000/mês** (dimensiona infra) |
 | P5 | Necessidade de acesso do cliente (portal) | Fora do MVP; previsto na Fase 4 |

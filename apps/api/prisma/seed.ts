@@ -4,7 +4,7 @@ import argon2 from 'argon2';
 const prisma = new PrismaClient();
 
 async function main() {
-  const senhaHash = await argon2.hash('technoloife@123', {
+  const senhaHash = await argon2.hash('technolife@123', {
     type: argon2.argon2id,
     memoryCost: 19456,
     timeCost: 2,
@@ -12,11 +12,11 @@ async function main() {
   });
 
   await prisma.usuario.upsert({
-    where: { email: 'admin@technoloife.com.br' },
+    where: { email: 'admin@technolife.com.br' },
     update: {},
     create: {
       nome: 'Administrador',
-      email: 'admin@technoloife.com.br',
+      email: 'admin@technolife.com.br',
       senhaHash,
       papel: 'ADMIN',
     },
@@ -86,7 +86,7 @@ async function main() {
   });
 
   console.log('Seed concluído.');
-  console.log('  Admin: admin@technoloife.com.br / technoloife@123');
+  console.log('  Admin: admin@technolife.com.br / technolife@123');
   console.log(`  Categoria de produto padrão: ${categoriaAcessorios.nome}`);
 }
 

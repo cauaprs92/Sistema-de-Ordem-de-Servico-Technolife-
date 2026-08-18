@@ -22,7 +22,7 @@ travar o cronograma.
 
 ```mermaid
 gantt
-    title Technoloife — MVP
+    title Technolife — MVP
     dateFormat YYYY-MM-DD
     axisFormat %d/%m
     section Fundação

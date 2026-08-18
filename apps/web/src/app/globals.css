@@ -3,27 +3,27 @@
 @tailwind utilities;
 
 :root {
-  /* Identidade Technoloife — azul e vermelho sobre fundo branco.
-     Tons finais de marca (logo, etc.) entram quando as fotos da empresa chegarem. */
+  /* Identidade Technolife — extraída do site institucional (technolife.net.br):
+     azul-marinho da logo/menu + vermelho vinho dos botões/destaques, fundo branco. */
   --background: 0 0% 100%;
   --foreground: 222 47% 11%;
   --border: 214 32% 91%;
 
-  --primary: 217 91% 40%;
+  --primary: 227 55% 24%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 355 78% 45%;
+  --secondary: 350 65% 38%;
   --secondary-foreground: 0 0% 100%;
 
   --muted: 210 40% 96%;
   --muted-foreground: 215 16% 47%;
 
-  --destructive: 0 72% 51%;
+  --destructive: 0 72% 45%;
   --destructive-foreground: 0 0% 100%;
 
   --sidebar-background: 0 0% 100%;
   --sidebar-border: 214 32% 91%;
-  --sidebar-active: 217 91% 96%;
+  --sidebar-active: 227 55% 95%;
 }
 
 body {

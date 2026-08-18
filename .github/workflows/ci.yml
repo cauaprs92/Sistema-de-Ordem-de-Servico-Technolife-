@@ -12,12 +12,12 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: technoloife
-          POSTGRES_PASSWORD: technoloife
-          POSTGRES_DB: technoloife
+          POSTGRES_USER: technolife
+          POSTGRES_PASSWORD: technolife
+          POSTGRES_DB: technolife
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U technoloife"
+          --health-cmd "pg_isready -U technolife"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -32,7 +32,7 @@ jobs:
 
     env:
       NODE_ENV: test
-      DATABASE_URL: postgresql://technoloife:technoloife@localhost:5432/technoloife?schema=public
+      DATABASE_URL: postgresql://technolife:technolife@localhost:5432/technolife?schema=public
       REDIS_URL: redis://localhost:6379
       JWT_SECRET: ci-secret-com-no-minimo-32-caracteres
       FISCAL_PROVIDER: mock

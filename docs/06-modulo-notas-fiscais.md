@@ -19,7 +19,7 @@
 | Risco operacional | Dependência de terceiro | Todo seu |
 
 **Recomendação técnica:** provedor terceiro. A NFS-e sozinha já justifica — cada prefeitura
-tem seu próprio webservice, e a Technoloife emite nota de serviço. O ganho de "não pagar por
+tem seu próprio webservice, e a Technolife emite nota de serviço. O ganho de "não pagar por
 nota" não compensa manter uma equipe acompanhando o calendário de mudanças da SEFAZ.
 A decisão final, porém, é do negócio; o código não fica refém dela.
 

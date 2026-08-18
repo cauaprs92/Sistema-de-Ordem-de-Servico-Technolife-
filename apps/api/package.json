@@ -20,8 +20,8 @@
     "seed": "dotenv -e ../../.env -- tsx prisma/seed.ts"
   },
   "dependencies": {
-    "@technoloife/contracts": "workspace:*",
-    "@technoloife/shared": "workspace:*",
+    "@technolife/contracts": "workspace:*",
+    "@technolife/shared": "workspace:*",
     "@fastify/cors": "^10.0.1",
     "@fastify/helmet": "^12.0.1",
     "@prisma/client": "^5.20.0",
